@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
-    <title>QuickChat</title>
+    <title>KurdChat</title>
     <link rel="icon" type="image/png" href="https://i.ibb.co/F4b8wMcd/imagine-draw-chat-app-logo-1755450297617-removebg-preview.png" />
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
@@ -898,7 +898,7 @@
     <div id="main-container">
         <header>
             <div class="logo">
-                <img src="https://i.ibb.co/F4b8wMcd/imagine-draw-chat-app-logo-1755450297617-removebg-preview.png" alt="">QuickChat</div>
+                <img src="https://i.ibb.co/F4b8wMcd/imagine-draw-chat-app-logo-1755450297617-removebg-preview.png" alt="">KurdChat</div>
             <div class="icons">
                 <span class="material-icons" id="profile-icon">person</span>
                 <span class="material-icons" id="qr-icon">qr_code_scanner</span>
@@ -1372,12 +1372,19 @@ const firebaseConfig = {
                     db.ref(`community_members/${community.id}/${uid}`).once('value', memberSnap => {
                         const isMember = memberSnap.exists();
                         const el = document.createElement('div');
+                        const isAdmin = community.createdBy === uid;
+
                         el.className = 'list-item';
                         el.dataset.communityid = community.id;
+                        
+                        const adminButton = isAdmin 
+                            ? `<button class="btn btn-reject" data-action="delete">Destroy</button>` 
+                            : '';
+
                         el.innerHTML = `
                             <img src="${community.avatar}" class="avatar">
                             <div class="item-info"><h4>${community.name}</h4><p>${community.description}</p></div>
-                            <button class="btn ${isMember ? '' : 'btn-accept'}">${isMember ? 'Chat' : 'Join'}</button>`;
+                            <button class="btn ${isMember ? '' : 'btn-accept'}" data-action="chat">${isMember ? 'Chat' : 'Join'}</button>${adminButton}`;
                         communityList.appendChild(el);
                     });
                 });
@@ -1386,12 +1393,24 @@ const firebaseConfig = {
         
         async function handleCommunityListClick(event) {
             const targetButton = event.target.closest('button');
+            if (!targetButton) return; // Exit if no button was clicked
+
             const listItem = event.target.closest('.list-item');
             if (!listItem) return;
             
             const communityId = listItem.dataset.communityid;
+            const action = targetButton.dataset.action;
+
+            if (action === 'delete') {
+                if (confirm(`Are you sure you want to permanently delete this community? This cannot be undone.`)) {
+                    await db.ref(`communities/${communityId}`).remove();
+                    await db.ref(`community_members/${communityId}`).remove();
+                    await db.ref(`community_chats/${communityId}`).remove();
+                    showNotification('Community has been destroyed.', 'success');
+                }
+                return;
+            }
             const communityData = (await db.ref(`communities/${communityId}`).get()).val();
-            
             if (targetButton && targetButton.textContent === 'Join') {
                  await db.ref(`community_members/${communityId}/${currentUser.uid}`).set(true);
                  showNotification('Joined community!', 'success');
