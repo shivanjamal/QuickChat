@@ -1466,12 +1466,16 @@ const firebaseConfig = {
         
         function sendMessage() {
             const input = document.getElementById('message-input');
+            const chatViewName = document.getElementById('chat-view-name').textContent;
             const text = input.value.trim();
             if (!text || !currentChatId) return;
             
             const messageData = { text, senderId: currentUser.uid, timestamp: firebase.database.ServerValue.TIMESTAMP };
             const ref = isCommunityChat ? db.ref(`community_chats/${currentChatId}`) : db.ref(`chats/${currentChatId}`);
             ref.push(messageData);
+
+            showNotification(`Message sent to ${chatViewName}`, 'info');
+            setTypingStatus(false);
             input.value = '';
         }
         
