@@ -1120,30 +1120,23 @@
     </div>
     
     <!-- Firebase SDKs -->
-    <script type="module">
-      // Import the functions you need from the SDKs you need
-      import { initializeApp } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-app.js";
-      import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-analytics.js";
-      // TODO: Add SDKs for Firebase products that you want to use
-      // https://firebase.google.com/docs/web/setup#available-libraries
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-storage-compat.js"></script>
 
-      // Your web app's Firebase configuration
-      // For Firebase JS SDK v7.20.0 and later, measurementId is optional
-      const firebaseConfig = {
-        apiKey: "AIzaSyDwIdvlwA_8bOtJf-wpfjI73iJewqpJEnc",
-        authDomain: "kurdchat-202d5.firebaseapp.com",
-        projectId: "kurdchat-202d5",
-        storageBucket: "kurdchat-202d5.firebasestorage.app",
-        messagingSenderId: "797147902157",
-        appId: "1:797147902157:web:ababe8d02595a73784b984",
-        measurementId: "G-17726PKYZX"
-      };
-
-      // Initialize Firebase
-      const app = initializeApp(firebaseConfig);
-      const analytics = getAnalytics(app);
-    </script>
     <script>
+        // --- FIREBASE INITIALIZATION ---
+const firebaseConfig = {
+  apiKey: "AIzaSyDLnvMiFNzNpEfyK0W74h31Hsc7NWQZ1gg",
+    authDomain: "carlogin-acaff.firebaseapp.com",
+    databaseURL: "https://carlogin-acaff-default-rtdb.firebaseio.com",
+    projectId: "carlogin-acaff",
+    storageBucket: "carlogin-acaff.firebasestorage.app",
+    messagingSenderId: "592556967309",
+    appId: "1:592556967309:web:994af31386f440182a29c4"
+  };
+        firebase.initializeApp(firebaseConfig);
         const auth = firebase.auth();
         const db = firebase.database();
         const storage = firebase.storage();
