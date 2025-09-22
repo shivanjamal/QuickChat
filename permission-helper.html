@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Camera & Mic Permission</title>
+  <style>
+    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; margin: 0; padding: 16px; background: #f7f7f8; color: #111; }
+    #start { padding: 12px 18px; font-size: 16px; border-radius: 8px; border: none; cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+    video { display:block; margin-top:16px; width:100%; max-width:420px; background:#000; border-radius:8px; }
+
+    /* Modal */
+    .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.45); display: none; align-items: center; justify-content: center; z-index: 9999; }
+    .modal { background: #fff; max-width: 520px; width: calc(100% - 32px); border-radius: 12px; padding: 18px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+    .modal h2 { margin: 0 0 8px 0; font-size: 18px; }
+    .modal p { margin: 0 0 12px 0; line-height: 1.4; color: #222; }
+    .buttons { display:flex; gap:8px; flex-wrap:wrap; }
+    .btn { padding: 10px 12px; border-radius: 8px; border: none; cursor:pointer; font-size:14px; }
+    .primary { background:#0b84ff; color:#fff; }
+    .secondary { background:#eee; color:#111; }
+    .instruction-box { background:#fafafa; border:1px solid #eee; padding:10px; border-radius:8px; margin-top:10px; font-size:13px; color:#333; }
+    .small { font-size:13px; color:#666; margin-top:8px; }
+
+    /* show modal */
+    .show { display:flex; }
+
+    @media (prefers-reduced-motion: reduce) {
+      .modal { transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <h1>Camera & Mic Test</h1>
+  <button id="start">Start Camera & Mic</button>
+  <video id="video" autoplay playsinline muted></video>
+
+  <!-- Modal -->
+  <div id="modalBackdrop" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal" role="document">
+      <h2 id="modalTitle">Please enable camera/mic access</h2>
+      <p id="modalMessage">
+        Please enable camera/mic access in your browser settings to make calls.<br>
+        تکایە دەستە بە ڕێنوێنەکانی وێبگەڕەکەت بدە بۆ بەکارھێنانی کامێرا و میکروفۆن (بۆ پەیوەندی و ڕێکەوتن).
+      </p>
+
+      <div class="instruction-box" id="instructions">
+        <!-- platform-specific instructions will be injected here -->
+      </div>
+
+      <div class="small">Tip: After enabling the permission in settings, refresh this page or press "Start Camera & Mic" again.</div>
+
+      <div class="buttons" style="margin-top:12px;">
+        <button id="copyBtn" class="btn secondary">Copy instructions</button>
+        <button id="closeBtn" class="btn primary">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const startBtn = document.getElementById(' start') || document.getElementById('start');
+    const video = document.getElementById('video');
+    const modalBackdrop = document.getElementById('modalBackdrop');
+    const instructionsDiv = document.getElementById('instructions');
+    const copyBtn = document.getElementById('copyBtn');
+    const closeBtn = document.getElementById('closeBtn');
+
+    function detectPlatform() {
+      const ua = navigator.userAgent || navigator.vendor || window.opera;
+      const isAndroid = /Android/i.test(ua);
+      const isIOS = /iPhone|iPad|iPod/i.test(ua);
+      const isSafari = /^((?!chrome|android).)*safari/i.test(ua);
+      return { isAndroid, isIOS, isSafari, ua };
+    }
+
+    function showModal(instructionsHtml) {
+      instructionsDiv.innerHTML = instructionsHtml;
+      modalBackdrop.classList.add('show');
+      // focus for accessibility
+      closeBtn.focus();
+    }
+
+    function hideModal() {
+      modalBackdrop.classList.remove('show');
+    }
+
+    function getInstructionsText() {
+      const { isAndroid, isIOS, isSafari } = detectPlatform();
+      let text = "Please enable camera & microphone access in your browser settings, then refresh the page.";
+      if (isIOS) {
+        text += "\n\niOS (Safari): Open Settings → Safari → Camera / Microphone → Allow\nOr open the site in Safari, tap the 'aA' (left of address bar) → Website Settings → Camera / Microphone → Allow.";
+      } else if (isAndroid) {
+        text += "\n\nAndroid (Chrome): Open Chrome → Settings → Site settings → Camera / Microphone → Allow for this site.\nOr go to Android Settings → Apps → Chrome → Permissions → Enable Camera & Microphone.";
+      } else {
+        text += "\n\nDesktop browsers: Check the lock icon in the address bar → Site settings → Allow Camera & Microphone for this site.";
+      }
+      return text;
+    }
+
+    function getInstructionsHtml() {
+      const { isAndroid, isIOS, isSafari } = detectPlatform();
+      if (isIOS) {
+        return `
+          <strong>iOS (Safari) instructions — (کورت)</strong>
+          <div style="margin-top:8px;">
+            1) Open <em>Settings</em> app → scroll to <em>Safari</em> → <em>Camera</em> and <em>Microphone</em> → set to <strong>Allow</strong>.<br>
+            2) Or open the page in Safari → tap <strong>aA</strong> (left of address bar) → <em>Website Settings</em> → Camera & Microphone → <strong>Allow</strong>.
+          </div>`;
+      } else if (isAndroid) {
+        return `
+          <strong>Android (Chrome) instructions — (کورت)</strong>
+          <div style="margin-top:8px;">
+            1) Open Chrome → menu (⋮) → Settings → Site settings → Camera / Microphone → find this site and set to <strong>Allow</strong>.<br>
+            2) Or Android Settings → Apps → Chrome → Permissions → enable <strong>Camera</strong> and <strong>Microphone</strong>.
+          </div>`;
+      } else {
+        return `
+          <strong>Desktop / Other browsers — (کورت)</strong>
+          <div style="margin-top:8px;">
+            1) Click the lock icon left of the address bar → Site settings → set Camera and Microphone to <strong>Allow</strong>.<br>
+            2) Then refresh the page and press "Start Camera & Mic" again.
+          </div>`;
+      }
+    }
+
+    // copy to clipboard
+    copyBtn.addEventListener('click', async () => {
+      const text = getInstructionsText();
+      try {
+        await navigator.clipboard.writeText(text);
+        copyBtn.textContent = 'Copied ✓';
+        setTimeout(() => copyBtn.textContent = 'Copy instructions', 1500);
+      } catch (e) {
+        // fallback
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand('copy'); copyBtn.textContent = 'Copied ✓'; }
+        catch (err) { alert('Could not copy. Please copy manually.'); }
+        document.body.removeChild(ta);
+        setTimeout(() => copyBtn.textContent = 'Copy instructions', 1500);
+      }
+    });
+
+    closeBtn.addEventListener('click', hideModal);
+    modalBackdrop.addEventListener('click', (e) => {
+      if (e.target === modalBackdrop) hideModal();
+    });
+
+    async function startMedia() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        // show stream
+        video.srcObject = stream;
+        video.muted = false;
+        console.log('Camera & Mic access granted ✅');
+      } catch (err) {
+        console.error('getUserMedia error:', err);
+        // Handle permission denied specifically
+        const name = err && (err.name || err.constructor && err.constructor.name) || '';
+        if (name === 'NotAllowedError' || name === 'PermissionDeniedError' || name === 'SecurityError') {
+          // show modal with message and platform-specific instructions
+          const html = getInstructionsHtml();
+          showModal(html);
+        } else if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+          showModal('<strong>No camera or microphone found on this device.</strong><div style="margin-top:8px;">Make sure your device has a camera/microphone and they are not in use by another app.</div>');
+        } else {
+          // other errors
+          showModal(`<strong>Error:</strong> ${ (err && err.message) || String(err) }`);
+        }
+      }
+    }
+
+    // wire button
+    startBtn.addEventListener('click', () => {
+      // update modal instructions each time (in case platform changed)
+      instructionsDiv.innerHTML = getInstructionsHtml();
+      startMedia();
+    });
+
+    // Accessibility: close modal with ESC
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') hideModal();
+    });
+  </script>
+</body>
+</html>
