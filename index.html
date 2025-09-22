@@ -509,6 +509,15 @@
             position: relative;
             z-index: 1;
         }
+
+        .typing-indicator {
+            padding: 0.75rem 1rem;
+            font-style: italic;
+            color: var(--text-secondary-color);
+            font-size: 0.875rem;
+            display: none; /* Hidden by default */
+            position: relative;
+        }
         
         .msg-group { 
             display: flex; 
@@ -1088,6 +1097,10 @@
                 <div class="spinner"></div>
                 <span>Loading messages...</span>
             </div>
+            <div class="typing-indicator" id="typing-indicator">
+                <!-- Typing indicator will be shown here -->
+                <span></span> is typing...
+            </div>
         </div>
         <div class="chat-input-area">
             <input type="text" id="message-input" placeholder="Type a message...">
@@ -1144,6 +1157,7 @@ const firebaseConfig = {
             startTime: null,
             isVideo: false
         };
+        let typingTimeout = null;
         
         // --- DOM ELEMENTS ---
         const authWrapper = document.getElementById('auth-wrapper');
@@ -1194,6 +1208,7 @@ const firebaseConfig = {
             loadFriends(uid);
             listenForFriendRequests(uid);
             loadCommunities(uid);
+            listenForNotifications(uid);
             listenForIncomingCalls(uid);
             loadCallHistory(uid);
             initializeMainView();
@@ -1427,6 +1442,7 @@ const firebaseConfig = {
             
             document.getElementById('chat-view-name').textContent = targetData.name;
             document.getElementById('chat-view-avatar').src = targetData.avatar;
+            document.getElementById('typing-indicator').style.display = 'none';
             const msgContainer = document.getElementById('chat-messages');
             msgContainer.innerHTML = '<div class="loading-spinner"><div class="spinner"></div></div>';
             
@@ -1460,25 +1476,86 @@ const firebaseConfig = {
                 msgContainer.scrollTop = msgContainer.scrollHeight;
             });
             
+            // Listen for typing indicators
+            const typingRef = db.ref(`typing_status/${currentChatId}`);
+            typingRef.on('value', async snapshot => {
+                const typingIndicatorEl = document.getElementById('typing-indicator');
+                const typingUsers = [];
+                if (snapshot.exists()) {
+                    snapshot.forEach(childSnap => {
+                        if (childSnap.key !== currentUser.uid && childSnap.val() === true) {
+                            typingUsers.push(childSnap.key);
+                        }
+                    });
+                }
+                
+                if (typingUsers.length > 0) {
+                    const firstTyper = (await db.ref(`users/${typingUsers[0]}`).get()).val();
+                    typingIndicatorEl.querySelector('span').textContent = isGroup ? firstTyper.name : '...';
+                    typingIndicatorEl.style.display = 'block'; 
+                    msgContainer.scrollTop = msgContainer.scrollHeight;
+                } else {
+                    typingIndicatorEl.style.display = 'none';
+                }
+            });
+
             chatViewContainer.classList.add('active');
             document.getElementById('message-input').focus();
         }
         
-        function sendMessage() {
+        async function sendMessage() {
             const input = document.getElementById('message-input');
             const chatViewName = document.getElementById('chat-view-name').textContent;
             const text = input.value.trim();
             if (!text || !currentChatId) return;
             
             const messageData = { text, senderId: currentUser.uid, timestamp: firebase.database.ServerValue.TIMESTAMP };
-            const ref = isCommunityChat ? db.ref(`community_chats/${currentChatId}`) : db.ref(`chats/${currentChatId}`);
-            ref.push(messageData);
+            const chatRef = isCommunityChat ? db.ref(`community_chats/${currentChatId}`) : db.ref(`chats/${currentChatId}`);
+            chatRef.push(messageData);
 
-            showNotification(`Message sent to ${chatViewName}`, 'info');
+            // --- Send notification to the other user ---
+            if (!isCommunityChat) {
+                const recipientUid = currentChatId.replace(currentUser.uid, '').replace('_', '');
+                if (recipientUid) {
+                    const senderData = (await db.ref(`users/${currentUser.uid}`).get()).val();
+                    const notificationData = {
+                        type: 'new_message',
+                        fromName: senderData.name,
+                        fromUid: currentUser.uid, // Add sender's UID
+                        message: text.substring(0, 40) + (text.length > 40 ? '...' : ''),
+                        timestamp: firebase.database.ServerValue.TIMESTAMP
+                    };
+                    db.ref(`notifications/${recipientUid}`).push(notificationData);
+                }
+            }
+
+            showNotification(`Message sent to ${chatViewName}`, 'info'); 
             setTypingStatus(false);
             input.value = '';
         }
         
+        function setTypingStatus(isTyping) {
+            if (!currentChatId) return;
+            const typingRef = db.ref(`typing_status/${currentChatId}/${currentUser.uid}`);
+            if (isTyping) typingRef.set(true);
+            else typingRef.remove();
+        }
+
+        function listenForNotifications(uid) {
+            const notificationsRef = db.ref(`notifications/${uid}`).orderByChild('timestamp').startAt(Date.now());
+            notificationsRef.on('child_added', snapshot => {
+                const notification = snapshot.val();
+                if (notification.type === 'new_message') {
+                    // Avoid showing notification if the user is already in that chat
+                    const expectedChatId = (uid > notification.fromUid) ? `${notification.fromUid}_${uid}` : `${uid}_${notification.fromUid}`; // Reconstruct chat ID
+                    if (!chatViewContainer.classList.contains('active') || currentChatId !== expectedChatId) {
+                        showNotification(`${notification.fromName}: ${notification.message}`, 'info');
+                    }
+                }
+                snapshot.ref.remove(); // Remove notification after it's been seen
+            });
+        }
+
         function setupPresence(uid) {
             const ref = db.ref(`/status/${uid}`);
             const isOffline = { isOnline: false, last_changed: firebase.database.ServerValue.TIMESTAMP };
@@ -1564,11 +1641,22 @@ const firebaseConfig = {
             // Chat View
             document.querySelector('.back-arrow').addEventListener('click', () => { 
                 chatViewContainer.classList.remove('active'); 
-                if (currentChatRef) { currentChatRef.off(); currentChatRef = null; } 
+                if (currentChatRef) { currentChatRef.off(); currentChatRef = null; }
+                if (currentChatId) {
+                    setTypingStatus(false); // Clean up typing status on close
+                    db.ref(`typing_status/${currentChatId}`).off();
+                }
                 currentChatId = null; isCommunityChat = false;
             });
             document.getElementById('send-message-btn').addEventListener('click', sendMessage);
-            document.getElementById('message-input').addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
+            document.getElementById('message-input').addEventListener('keyup', (e) => { 
+                if (e.key === 'Enter') { sendMessage(); }
+                else {
+                    setTypingStatus(true);
+                    clearTimeout(typingTimeout);
+                    typingTimeout = setTimeout(() => setTypingStatus(false), 2000);
+                }
+            });
             
             // Call Initiation
             document.getElementById('chat-view-video-call').addEventListener('click', () => checkPermissionsAndStartCall(true));
