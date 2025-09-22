@@ -1491,7 +1491,7 @@ const firebaseConfig = {
                 
                 if (typingUsers.length > 0) {
                     const firstTyper = (await db.ref(`users/${typingUsers[0]}`).get()).val();
-                    typingIndicatorEl.querySelector('span').textContent = isGroup ? firstTyper.name : '...';
+                    typingIndicatorEl.querySelector('span').textContent = firstTyper.name;
                     typingIndicatorEl.style.display = 'block'; 
                     msgContainer.scrollTop = msgContainer.scrollHeight;
                 } else {
