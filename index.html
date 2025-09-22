@@ -509,15 +509,6 @@
             position: relative;
             z-index: 1;
         }
-
-        .typing-indicator {
-            padding: 0.75rem 1rem;
-            font-style: italic;
-            color: var(--text-secondary-color);
-            font-size: 0.875rem;
-            display: none; /* Hidden by default */
-            position: relative;
-        }
         
         .msg-group { 
             display: flex; 
@@ -1097,10 +1088,6 @@
                 <div class="spinner"></div>
                 <span>Loading messages...</span>
             </div>
-            <div class="typing-indicator" id="typing-indicator">
-                <!-- Typing indicator will be shown here -->
-                <span></span> is typing...
-            </div>
         </div>
         <div class="chat-input-area">
             <input type="text" id="message-input" placeholder="Type a message...">
@@ -1127,15 +1114,15 @@
 
     <script>
         // --- FIREBASE INITIALIZATION ---
-const firebaseConfig = {
-  apiKey: "AIzaSyDLnvMiFNzNpEfyK0W74h31Hsc7NWQZ1gg",
-    authDomain: "carlogin-acaff.firebaseapp.com",
-    databaseURL: "https://carlogin-acaff-default-rtdb.firebaseio.com",
-    projectId: "carlogin-acaff",
-    storageBucket: "carlogin-acaff.firebasestorage.app",
-    messagingSenderId: "592556967309",
-    appId: "1:592556967309:web:994af31386f440182a29c4"
+firebaseConfig = {
+    apiKey: "AIzaSyCTA_AVgjcEI6mrRQhBtLmcKVltRtusZXM",
+    authDomain: "kurdchat-3cb77.firebaseapp.com",
+    projectId: "kurdchat-3cb77",
+    storageBucket: "kurdchat-3cb77.firebasestorage.app",
+    messagingSenderId: "1079289334315",
+    appId: "1:1079289334315:web:5940579bdc47702ab9386e"
   };
+
         firebase.initializeApp(firebaseConfig);
         const auth = firebase.auth();
         const db = firebase.database();
@@ -1157,7 +1144,6 @@ const firebaseConfig = {
             startTime: null,
             isVideo: false
         };
-        let typingTimeout = null;
         
         // --- DOM ELEMENTS ---
         const authWrapper = document.getElementById('auth-wrapper');
@@ -1208,7 +1194,6 @@ const firebaseConfig = {
             loadFriends(uid);
             listenForFriendRequests(uid);
             loadCommunities(uid);
-            listenForNotifications(uid);
             listenForIncomingCalls(uid);
             loadCallHistory(uid);
             initializeMainView();
@@ -1387,19 +1372,12 @@ const firebaseConfig = {
                     db.ref(`community_members/${community.id}/${uid}`).once('value', memberSnap => {
                         const isMember = memberSnap.exists();
                         const el = document.createElement('div');
-                        const isAdmin = community.createdBy === uid;
-
                         el.className = 'list-item';
                         el.dataset.communityid = community.id;
-                        
-                        const adminButton = isAdmin 
-                            ? `<button class="btn btn-reject" data-action="delete">Destroy</button>` 
-                            : '';
-
                         el.innerHTML = `
                             <img src="${community.avatar}" class="avatar">
                             <div class="item-info"><h4>${community.name}</h4><p>${community.description}</p></div>
-                            <button class="btn ${isMember ? '' : 'btn-accept'}" data-action="chat">${isMember ? 'Chat' : 'Join'}</button>${adminButton}`;
+                            <button class="btn ${isMember ? '' : 'btn-accept'}">${isMember ? 'Chat' : 'Join'}</button>`;
                         communityList.appendChild(el);
                     });
                 });
@@ -1408,24 +1386,12 @@ const firebaseConfig = {
         
         async function handleCommunityListClick(event) {
             const targetButton = event.target.closest('button');
-            if (!targetButton) return; // Exit if no button was clicked
-
             const listItem = event.target.closest('.list-item');
             if (!listItem) return;
             
             const communityId = listItem.dataset.communityid;
-            const action = targetButton.dataset.action;
-
-            if (action === 'delete') {
-                if (confirm(`Are you sure you want to permanently delete this community? This cannot be undone.`)) {
-                    await db.ref(`communities/${communityId}`).remove();
-                    await db.ref(`community_members/${communityId}`).remove();
-                    await db.ref(`community_chats/${communityId}`).remove();
-                    showNotification('Community has been destroyed.', 'success');
-                }
-                return;
-            }
             const communityData = (await db.ref(`communities/${communityId}`).get()).val();
+            
             if (targetButton && targetButton.textContent === 'Join') {
                  await db.ref(`community_members/${communityId}/${currentUser.uid}`).set(true);
                  showNotification('Joined community!', 'success');
@@ -1442,7 +1408,6 @@ const firebaseConfig = {
             
             document.getElementById('chat-view-name').textContent = targetData.name;
             document.getElementById('chat-view-avatar').src = targetData.avatar;
-            document.getElementById('typing-indicator').style.display = 'none';
             const msgContainer = document.getElementById('chat-messages');
             msgContainer.innerHTML = '<div class="loading-spinner"><div class="spinner"></div></div>';
             
@@ -1476,86 +1441,21 @@ const firebaseConfig = {
                 msgContainer.scrollTop = msgContainer.scrollHeight;
             });
             
-            // Listen for typing indicators
-            const typingRef = db.ref(`typing_status/${currentChatId}`);
-            typingRef.on('value', async snapshot => {
-                const typingIndicatorEl = document.getElementById('typing-indicator');
-                const typingUsers = [];
-                if (snapshot.exists()) {
-                    snapshot.forEach(childSnap => {
-                        if (childSnap.key !== currentUser.uid && childSnap.val() === true) {
-                            typingUsers.push(childSnap.key);
-                        }
-                    });
-                }
-                
-                if (typingUsers.length > 0) {
-                    const firstTyper = (await db.ref(`users/${typingUsers[0]}`).get()).val();
-                    typingIndicatorEl.querySelector('span').textContent = firstTyper.name;
-                    typingIndicatorEl.style.display = 'block'; 
-                    msgContainer.scrollTop = msgContainer.scrollHeight;
-                } else {
-                    typingIndicatorEl.style.display = 'none';
-                }
-            });
-
             chatViewContainer.classList.add('active');
             document.getElementById('message-input').focus();
         }
         
-        async function sendMessage() {
+        function sendMessage() {
             const input = document.getElementById('message-input');
-            const chatViewName = document.getElementById('chat-view-name').textContent;
             const text = input.value.trim();
             if (!text || !currentChatId) return;
             
             const messageData = { text, senderId: currentUser.uid, timestamp: firebase.database.ServerValue.TIMESTAMP };
-            const chatRef = isCommunityChat ? db.ref(`community_chats/${currentChatId}`) : db.ref(`chats/${currentChatId}`);
-            chatRef.push(messageData);
-
-            // --- Send notification to the other user ---
-            if (!isCommunityChat) {
-                const recipientUid = currentChatId.replace(currentUser.uid, '').replace('_', '');
-                if (recipientUid) {
-                    const senderData = (await db.ref(`users/${currentUser.uid}`).get()).val();
-                    const notificationData = {
-                        type: 'new_message',
-                        fromName: senderData.name,
-                        fromUid: currentUser.uid, // Add sender's UID
-                        message: text.substring(0, 40) + (text.length > 40 ? '...' : ''),
-                        timestamp: firebase.database.ServerValue.TIMESTAMP
-                    };
-                    db.ref(`notifications/${recipientUid}`).push(notificationData);
-                }
-            }
-
-            showNotification(`Message sent to ${chatViewName}`, 'info'); 
-            setTypingStatus(false);
+            const ref = isCommunityChat ? db.ref(`community_chats/${currentChatId}`) : db.ref(`chats/${currentChatId}`);
+            ref.push(messageData);
             input.value = '';
         }
         
-        function setTypingStatus(isTyping) {
-            if (!currentChatId) return;
-            const typingRef = db.ref(`typing_status/${currentChatId}/${currentUser.uid}`);
-            if (isTyping) typingRef.set(true);
-            else typingRef.remove();
-        }
-
-        function listenForNotifications(uid) {
-            const notificationsRef = db.ref(`notifications/${uid}`).orderByChild('timestamp').startAt(Date.now());
-            notificationsRef.on('child_added', snapshot => {
-                const notification = snapshot.val();
-                if (notification.type === 'new_message') {
-                    // Avoid showing notification if the user is already in that chat
-                    const expectedChatId = (uid > notification.fromUid) ? `${notification.fromUid}_${uid}` : `${uid}_${notification.fromUid}`; // Reconstruct chat ID
-                    if (!chatViewContainer.classList.contains('active') || currentChatId !== expectedChatId) {
-                        showNotification(`${notification.fromName}: ${notification.message}`, 'info');
-                    }
-                }
-                snapshot.ref.remove(); // Remove notification after it's been seen
-            });
-        }
-
         function setupPresence(uid) {
             const ref = db.ref(`/status/${uid}`);
             const isOffline = { isOnline: false, last_changed: firebase.database.ServerValue.TIMESTAMP };
@@ -1641,22 +1541,11 @@ const firebaseConfig = {
             // Chat View
             document.querySelector('.back-arrow').addEventListener('click', () => { 
                 chatViewContainer.classList.remove('active'); 
-                if (currentChatRef) { currentChatRef.off(); currentChatRef = null; }
-                if (currentChatId) {
-                    setTypingStatus(false); // Clean up typing status on close
-                    db.ref(`typing_status/${currentChatId}`).off();
-                }
+                if (currentChatRef) { currentChatRef.off(); currentChatRef = null; } 
                 currentChatId = null; isCommunityChat = false;
             });
             document.getElementById('send-message-btn').addEventListener('click', sendMessage);
-            document.getElementById('message-input').addEventListener('keyup', (e) => { 
-                if (e.key === 'Enter') { sendMessage(); }
-                else {
-                    setTypingStatus(true);
-                    clearTimeout(typingTimeout);
-                    typingTimeout = setTimeout(() => setTypingStatus(false), 2000);
-                }
-            });
+            document.getElementById('message-input').addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
             
             // Call Initiation
             document.getElementById('chat-view-video-call').addEventListener('click', () => checkPermissionsAndStartCall(true));
@@ -1718,23 +1607,18 @@ const firebaseConfig = {
         const peerConnectionConfig = { 'iceServers': [{ 'urls': 'stun:stun.l.google.com:19302' }] };
 
         async function checkPermissionsAndStartCall(isVideo, forcePrompt = false) {
-            // For mobile Safari and other strict browsers, it's best to call getUserMedia
-            // directly inside a user-initiated event handler (like a click).
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ video: isVideo, audio: true });
-                console.log("Camera & Mic access granted.");
-                // We have the stream, so we can stop the tracks and proceed.
-                // The startCall function will re-acquire the stream.
+                // Immediately stop the tracks because we will re-request them in the startCall function.
+                // This is just to check/trigger the permission prompt.
                 stream.getTracks().forEach(track => track.stop());
-
                 if (forcePrompt) {
-                     showNotification('Permissions are granted!', 'success');
+                     showNotification('Permissions have been granted!', 'success');
                      return;
                 }
                 startCall(isVideo);
             } catch (err) {
-                console.error("Camera/Mic access denied:", err);
-                alert("Please enable camera/mic access in your browser settings to make calls.");
+                console.error("Media permission error:", err);
                 showNotification('Camera/Mic access denied. Please grant permission in settings.', 'error');
             }
         }
